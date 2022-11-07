@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 
 //Thanks to : https://sharpcoderblog.com/blog/unity-3d-rts-style-unit-selection
 [AddComponentMenu("Speckle/Playground/Selection Manager"), DisallowMultipleComponent]
-public class SelectionManager : MonoBehaviour
+public class  SelectionManager : MonoBehaviour
 {
   public Texture topLeftBorder;
   public Texture bottomLeftBorder;

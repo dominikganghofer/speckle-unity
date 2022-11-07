@@ -2,6 +2,7 @@ using System;
 using Speckle.Core.Api;
 using Speckle.Core.Credentials;
 using System.Collections.Generic;
+using System.Threading;
 using Speckle.Core.Models;
 using UnityEngine;
 
@@ -39,6 +40,9 @@ namespace Speckle.ConnectorUnity
         public GameObject ConvertRecursivelyToNative(Base @base, string rootObjectName,
             Action<Base>? beforeConvertCallback)
         {
+            
+            var id = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine(id);
             var rootObject = new GameObject(rootObjectName);
 
             bool Predicate(Base o)
