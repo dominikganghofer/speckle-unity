@@ -129,11 +129,12 @@ namespace Speckle.ConnectorUnity
     {
       try
       {
-
         var transport = new ServerTransport(Client.Account, StreamId);
-        var @base = await Operations.Receive(
+        var localTransport = new MemoryTransport();
+        var @base = Operations.Receive(
           objectId,
           remoteTransport: transport,
+          localTransport: localTransport,
           onErrorAction: OnErrorAction,
           onProgressAction: OnProgressAction,
           onTotalChildrenCountKnown: OnTotalChildrenCountKnown,
