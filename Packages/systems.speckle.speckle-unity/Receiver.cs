@@ -131,7 +131,7 @@ namespace Speckle.ConnectorUnity
       {
         var transport = new ServerTransport(Client.Account, StreamId);
         var localTransport = new MemoryTransport();
-        var @base = Operations.Receive(
+        var @base = DebugReceive.Receive(
           objectId,
           remoteTransport: transport,
           localTransport: localTransport,
