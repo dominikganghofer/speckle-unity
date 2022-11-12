@@ -20,7 +20,7 @@ namespace Speckle.ConnectorUnity
 
         private void Awake()
         {
-            Setup.Init(HostApplications.Unity.GetVersion(CoreUtils.GetHostAppVersion()), HostApplications.Unity.Slug);
+            // Setup.Init(HostApplications.Unity.GetVersion(CoreUtils.GetHostAppVersion()), HostApplications.Unity.Slug);
 
             if (AssetCache == null)
             {
