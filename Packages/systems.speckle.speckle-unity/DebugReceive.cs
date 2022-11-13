@@ -144,16 +144,24 @@ namespace Speckle.ConnectorUnity
 
       if (serializerVersion == SerializerVersion.V1)
       {
+        Dispatcher.Instance().Enqueue(() => { Debug.Log($"j "); });
         base1 = JsonConvert.DeserializeObject<Base>(objString, settings);
+        Dispatcher.Instance().Enqueue(() => { Debug.Log($"k "); });
       }
       else
       {
         try
         {
+          Dispatcher.Instance().Enqueue(() => { Debug.Log($"l "); });
           base1 = serializerV2.Deserialize(objString);
+          Dispatcher.Instance().Enqueue(() => { Debug.Log($"m "); });
+
         }
         catch (Exception ex)
         {
+          Dispatcher.Instance().Enqueue(() => { Debug.Log($"n "); });
+          Dispatcher.Instance().Enqueue(() => { Debug.Log($"{ex}"); });
+
           if (serializerV2.OnErrorAction == null)
           {
             throw;
