@@ -26,7 +26,7 @@ namespace Speckle.ConnectorUnity
       bool disposeTransports = false,
       SerializerVersion serializerVersion = SerializerVersion.V2)
     {
-      return Operations.Receive(objectId, CancellationToken.None, remoteTransport, localTransport, onProgressAction, onErrorAction, onTotalChildrenCountKnown, disposeTransports, serializerVersion);
+      return Receive(objectId, CancellationToken.None, remoteTransport, localTransport, onProgressAction, onErrorAction, onTotalChildrenCountKnown, disposeTransports, serializerVersion);
     }
 
     /// <summary>Receives an object from a transport.</summary>
