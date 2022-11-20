@@ -58,7 +58,6 @@ namespace Speckle.ConnectorUnity
       try
       {
         CancelOperations();
-        
         cancellationTokenSource = new CancellationTokenSource();
         
         var client = new Client(account ?? AccountManager.GetDefaultAccount());
@@ -93,23 +92,21 @@ namespace Speckle.ConnectorUnity
 
       Task.Run(async () =>
       {
-      
+
         var res = await Operations.Send(
           data,
           cancellationToken: cancellationToken,
           new List<ITransport>() {remoteTransport},
-          useDefaultCache: true,
+          useDefaultCache: false,
           disposeTransports: true,
           onProgressAction: onProgressAction,
           onErrorAction: onErrorAction
         );
-
-        Analytics.TrackEvent(client.Account, Analytics.Events.Send);
-
+        
         if (createCommit && !cancellationToken.IsCancellationRequested)
         {
           long count = data.GetTotalChildrenCount();
-          
+  
           await client.CommitCreate(cancellationToken,
             new CommitCreateInput
             {
@@ -121,7 +118,6 @@ namespace Speckle.ConnectorUnity
               totalChildrenCount = (int)count,
             });
         }
-        
         onDataSentAction?.Invoke(res);
       }, cancellationToken);
     }
