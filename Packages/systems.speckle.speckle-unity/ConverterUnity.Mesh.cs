@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using Objects.Geometry;
 using Objects.Other;
+using Objects.Primitive;
 using Objects.Utils;
 using Speckle.ConnectorUnity;
 using Speckle.ConnectorUnity.NativeCache;
@@ -11,6 +13,8 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using Material = UnityEngine.Material;
 using Mesh = UnityEngine.Mesh;
+using Plane = Objects.Geometry.Plane;
+using Random = System.Random;
 using SMesh = Objects.Geometry.Mesh;
 using SColor = System.Drawing.Color;
 using Transform = UnityEngine.Transform;
@@ -21,13 +25,12 @@ namespace Objects.Converter.Unity
 {
     public partial class ConverterUnity
     {
-
         protected static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
         protected static readonly int Metallic = Shader.PropertyToID("_Metallic");
         protected static readonly int Glossiness = Shader.PropertyToID("_Glossiness");
 
         #region ToSpeckle
-        
+
         public virtual List<SMesh>? MeshToSpeckle(MeshFilter meshFilter)
         {
             Material[]? materials = meshFilter.GetComponent<Renderer>()?.materials;
@@ -45,9 +48,8 @@ namespace Objects.Converter.Unity
                 SMesh converted;
                 switch (subMesh.topology)
                 {
-                    // case MeshTopology.Points:
-                    //     //TODO convert as pointcloud
-                    //     continue;
+                    case MeshTopology.Points:
+
                     case MeshTopology.Triangles:
                         converted = SubMeshToSpeckle(nativeMesh, meshFilter.transform, subMesh, i, 3);
                         convertedMeshes.Add(converted);
@@ -72,6 +74,64 @@ namespace Objects.Converter.Unity
         }
 
 
+        // protected virtual SMesh SubMeshToSpecklePointCloud(Mesh nativeMesh, Transform instanceTransform,
+        //     SubMeshDescriptor subMesh, int subMeshIndex, int faceN)
+        // {
+        // }
+        public Pointcloud PointcloudToSpeckle(Mesh nativeMesh, Transform instanceTransform)
+        {
+            var vertices = nativeMesh.vertices
+                .Select(v =>
+                {
+                    var p = instanceTransform.TransformPoint(v);
+                    return new double[] { p.x, p.z, p.y };
+                }).SelectMany(v => v )
+                .ToList();
+
+            var nColors = nativeMesh.colors.ToArray();
+            ;
+            List<int> sColors = new List<int>(nColors.Length);
+            sColors.AddRange(nColors.Select(c => c.ToIntColor()));
+
+            Point pToSpecke(Vector3 p) => new Point(p.x, p.z, p.y);
+            Vector vToSpecke(Vector3 v) => new Vector(v.x, v.z, v.y);
+            Interval IntervalToSpeckle(float min, float max) => new Interval(min, max);
+            var boxPlane = new Plane()
+            {
+                origin = pToSpecke(instanceTransform.position),
+                normal = vToSpecke(Vector3.up),
+                xdir = vToSpecke(Vector3.right),
+                ydir = vToSpecke(Vector3.forward),
+            };
+
+            var speckleBox = new Box(
+                boxPlane,
+                new Interval(
+                    nativeMesh.vertices.Min(p => p.x),
+                    nativeMesh.vertices.Max(p => p.x)
+                ),
+                new Interval(
+                    nativeMesh.vertices.Min(p => p.z),
+                    nativeMesh.vertices.Max(p => p.z)
+                ),
+                new Interval(
+                    nativeMesh.vertices.Min(p => p.y),
+                    nativeMesh.vertices.Max(p => p.y)
+                )
+            );
+
+            var pointcloud = new Pointcloud()
+            {
+                points = vertices,
+                colors = nativeMesh.colors.Select(c => c.ToIntColor()).ToList(),
+                bbox = speckleBox,
+                units = ModelUnits
+            };
+
+            return pointcloud;
+        }
+
+
         protected virtual SMesh SubMeshToSpeckle(Mesh nativeMesh, Transform instanceTransform,
             SubMeshDescriptor subMesh, int subMeshIndex, int faceN)
         {
@@ -80,21 +140,6 @@ namespace Objects.Converter.Unity
             List<int> sFaces = new List<int>(numFaces * (faceN + 1));
 
             int indexOffset = subMesh.firstVertex;
-
-            // int i = 0;
-            // int j = 0;
-            // while (i < nFaces.Length)
-            // {
-            //     if (j == 0)
-            //     {
-            //         sFaces.Add(faceN);
-            //         j = faceN;
-            //     }
-            //     sFaces.Add(nFaces[i] - indexOffset);
-            //     j--;
-            //     i++;
-            // }
-
             int i = nFaces.Length - 1;
             int j = 0;
             while (i >= 0) //Traverse backwards to ensure CCW face orientation
@@ -226,7 +271,7 @@ namespace Objects.Converter.Unity
                 nativeMesh.name = name;
                 LoadedAssets.TrySaveObject(element, nativeMesh);
             }
-            
+
             var go = new GameObject();
             go.transform.position = center;
             go.SafeMeshSet(nativeMesh, nativeMaterials);
@@ -248,7 +293,7 @@ namespace Objects.Converter.Unity
                 return null;
             }
 
-            GameObject? converted = MeshesToNative(speckleMesh, new[] {speckleMesh});
+            GameObject? converted = MeshesToNative(speckleMesh, new[] { speckleMesh });
 
             // Raw meshes shouldn't have dynamic props to attach
             //if (converted != null) AttachSpeckleProperties(converted,speckleMesh.GetType(), GetProperties(speckleMesh, typeof(Mesh)));
@@ -256,7 +301,8 @@ namespace Objects.Converter.Unity
             return converted;
         }
 
-        protected bool TryGetMeshFromCache(Base element, IReadOnlyCollection<SMesh> meshes, [NotNullWhen(true)] out Mesh? nativeMesh, out Vector3 center)
+        protected bool TryGetMeshFromCache(Base element, IReadOnlyCollection<SMesh> meshes,
+            [NotNullWhen(true)] out Mesh? nativeMesh, out Vector3 center)
         {
             if (LoadedAssets.TryGetObject(element, out Mesh? existing))
             {
@@ -275,7 +321,7 @@ namespace Objects.Converter.Unity
             center = default;
             return false;
         }
-        
+
         /// <summary>
         /// Converts Speckle <see cref="SMesh"/>s as a native <see cref="Mesh"/> object 
         /// </summary>
@@ -284,7 +330,7 @@ namespace Objects.Converter.Unity
         public void MeshToNativeMesh(IReadOnlyCollection<SMesh> meshes, out Mesh nativeMesh)
             => MeshToNativeMesh(meshes, out nativeMesh, out _, false);
 
-        
+
         /// <inheritdoc cref="MeshDataToNative(System.Collections.Generic.IReadOnlyCollection{Objects.Geometry.Mesh},out UnityEngine.Mesh,out UnityEngine.Material[])"/>
         /// <param name="recenterVerts">when true, will recenter vertices</param>
         /// <param name="center">Center position for the mesh</param>
@@ -298,7 +344,7 @@ namespace Objects.Converter.Unity
                 out List<Vector2> uvs,
                 out List<Color> vertexColors,
                 out List<List<int>> subMeshes);
-            
+
             Debug.Assert(verts.Count >= 0);
 
             center = recenterVerts ? RecenterVertices(verts) : Vector3.zero;
@@ -325,8 +371,8 @@ namespace Objects.Converter.Unity
             nativeMesh.RecalculateNormals();
             nativeMesh.RecalculateTangents();
         }
-        
-        public void MeshDataToNative(IReadOnlyCollection<SMesh> meshes, 
+
+        public void MeshDataToNative(IReadOnlyCollection<SMesh> meshes,
             out List<Vector3> verts,
             out List<Vector2> uvs,
             out List<Color> vertexColors,
@@ -340,7 +386,7 @@ namespace Objects.Converter.Unity
             foreach (SMesh m in meshes)
             {
                 if (m.vertices.Count == 0 || m.faces.Count == 0) continue;
-                
+
                 List<int> tris = new List<int>();
                 SubmeshToNative(m, verts, tris, uvs, vertexColors);
                 subMeshes.Add(tris);
@@ -371,14 +417,14 @@ namespace Objects.Converter.Unity
                 for (int j = 0; j < speckleMesh.TextureCoordinatesCount; j++)
                 {
                     var (u, v) = speckleMesh.GetTextureCoordinate(j);
-                    texCoords.Add(new Vector2((float) u, (float) v));
+                    texCoords.Add(new Vector2((float)u, (float)v));
                 }
             }
             else if (speckleMesh.bbox != null)
             {
                 // Attempt to generate some crude UV coordinates using bbox
-                texCoords.AddRange(GenerateUV(indexOffset, verts, (float) speckleMesh.bbox.xSize.Length,
-                    (float) speckleMesh.bbox.ySize.Length));
+                texCoords.AddRange(GenerateUV(indexOffset, verts, (float)speckleMesh.bbox.xSize.Length,
+                    (float)speckleMesh.bbox.ySize.Length));
             }
             else
             {
@@ -401,7 +447,7 @@ namespace Objects.Converter.Unity
             }
 
             // Convert faces
-            tris.Capacity += (int) (speckleMesh.faces.Count / 4f) * 3;
+            tris.Capacity += (int)(speckleMesh.faces.Count / 4f) * 3;
 
             for (int i = 0; i < speckleMesh.faces.Count; i += 4)
             {
@@ -412,55 +458,55 @@ namespace Objects.Converter.Unity
             }
         }
 
-        
+
         protected static IEnumerable<Vector2> GenerateUV(int indexOffset, IReadOnlyList<Vector3> verts, float xSize,
             float ySize)
         {
             var uv = new Vector2[verts.Count - indexOffset];
             for (int i = 0; i < verts.Count - indexOffset; i++)
             {
-
                 var vert = verts[i];
                 uv[i] = new Vector2(vert.x / xSize, vert.y / ySize);
             }
 
             return uv;
         }
-        
+
         protected static Vector3 RecenterVertices(IList<Vector3> vertices)
         {
             if (!vertices.Any()) return Vector3.zero;
-            
+
             Bounds meshBounds = CalculateBounds(vertices);
-            
+
             for (int i = 0; i < vertices.Count; i++)
                 vertices[i] -= meshBounds.center;
 
             return meshBounds.center;
         }
-        
+
         protected static Bounds CalculateBounds(IList<Vector3> points)
         {
-            Bounds b = new Bounds {center = points[0]};
+            Bounds b = new Bounds { center = points[0] };
 
             foreach (var p in points)
                 b.Encapsulate(p);
 
             return b;
         }
-        
-        
+
+
         public Material[] RenderMaterialsToNative(IEnumerable<SMesh> meshes)
         {
             return meshes.Select(m => RenderMaterialToNative(m["renderMaterial"] as RenderMaterial)).ToArray();
         }
 
         //Just used as cache key for the default (null) material
-        private static RenderMaterial defaultMaterialPlaceholder = new(){id="defaultMaterial"};
+        private static RenderMaterial defaultMaterialPlaceholder = new() { id = "defaultMaterial" };
+
         public Material RenderMaterialToNative(RenderMaterial? renderMaterial)
         {
             //todo support more complex materials
-            
+
             // 1. If no renderMaterial was passed, use default material
             if (renderMaterial == null)
             {
@@ -469,32 +515,30 @@ namespace Objects.Converter.Unity
                     defaultMaterial = new Material(Shader.Find("Standard"));
                     LoadedAssets.TrySaveObject(defaultMaterialPlaceholder, defaultMaterial);
                 }
+
                 return defaultMaterial;
             }
 
             // 2. Try get existing/override material from asset cache
             if (LoadedAssets.TryGetObject(renderMaterial, out Material? loadedMaterial)) return loadedMaterial;
-            
+
             // 3. Otherwise, convert fresh!
             string shaderName = renderMaterial.opacity < 1 ? "Transparent/Diffuse" : "Standard";
             Shader shader = Shader.Find(shaderName);
             var mat = new Material(shader);
-            
+
             var c = renderMaterial.diffuse.ToUnityColor();
-            mat.color = new Color(c.r, c.g, c.b, (float) renderMaterial.opacity);
+            mat.color = new Color(c.r, c.g, c.b, (float)renderMaterial.opacity);
             mat.name = AssetHelpers.GetObjectName(renderMaterial);
-            mat.SetFloat(Metallic, (float) renderMaterial.metalness);
-            mat.SetFloat(Glossiness, 1 - (float) renderMaterial.roughness);
+            mat.SetFloat(Metallic, (float)renderMaterial.metalness);
+            mat.SetFloat(Glossiness, 1 - (float)renderMaterial.roughness);
             if (renderMaterial.emissive != SColor.Black.ToArgb()) mat.EnableKeyword("_EMISSION");
             mat.SetColor(EmissionColor, renderMaterial.emissive.ToUnityColor());
-            
+
             LoadedAssets.TrySaveObject(renderMaterial, mat);
             return mat;
         }
-        
-        
+
         #endregion
-
     }
-
 }

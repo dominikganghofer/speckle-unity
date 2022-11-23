@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Objects.BuiltElements;
+using Objects.Geometry;
 using Objects.Other;
 using Speckle.ConnectorUnity;
 using Speckle.ConnectorUnity.NativeCache;
@@ -56,17 +57,36 @@ namespace Objects.Converter.Unity
 
         #endregion implemented methods
 
-
+        
         public Base ConvertGameObjectToSpeckle(GameObject go)
         {
-            Base speckleObject = CreateSpeckleObjectFromProperties(go);
 
+            if (go.GetComponent<MeshFilter>()?.sharedMesh.GetTopology(0) == MeshTopology.Points)
+            {
+                            
+                var mesh = go.GetComponent<MeshFilter>()?.sharedMesh;
+                var pointCloud = PointcloudToSpeckle(mesh, go.transform);
+            
+            
+                pointCloud["name"] = go.name + " POINTCLOUD";
+                //speckleObject["transform"] = TransformToSpeckle(go.Transform); //TODO
+                pointCloud["tag"] = go.tag;
+                pointCloud["physicsLayer"] = LayerMask.LayerToName(go.layer);
+                //speckleObject["isStatic"] = go.isStatic; //todo figure out realtime-rendered static mobility interoperability (unreal)
+
+            
+                return pointCloud;
+            }
+            
+            
+            Base speckleObject = CreateSpeckleObjectFromProperties(go);
+            
             speckleObject["name"] = go.name;
             //speckleObject["transform"] = TransformToSpeckle(go.Transform); //TODO
             speckleObject["tag"] = go.tag;
             speckleObject["physicsLayer"] = LayerMask.LayerToName(go.layer);
             //speckleObject["isStatic"] = go.isStatic; //todo figure out realtime-rendered static mobility interoperability (unreal)
-
+            
             foreach (Component component in go.GetComponents<Component>())
             {
                 try
@@ -75,9 +95,7 @@ namespace Objects.Converter.Unity
                     {
                         case MeshFilter meshFilter:
                             var displayValues = MeshToSpeckle(meshFilter);
-
                             speckleObject.SetDetachedPropertyChecked("displayValue", displayValues);
-
                             break;
                         // case Camera camera:
                         //     speckleObject["cameraComponent"] = CameraToSpeckle(camera);
